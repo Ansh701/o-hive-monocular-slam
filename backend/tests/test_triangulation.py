@@ -11,7 +11,6 @@ from backend.slam.map import (
 )
 from backend.slam.types import CameraIntrinsics, SlamErrorCategory, SlamFailure
 
-
 K = np.array([[700.0, 0.0, 320.0], [0.0, 700.0, 180.0], [0.0, 0.0, 1.0]])
 POSE_A = np.eye(4)
 POSE_B = np.eye(4)
