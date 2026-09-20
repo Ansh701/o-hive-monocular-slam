@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 from scipy.optimize import least_squares
+from scipy.sparse import lil_matrix
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +168,27 @@ def _parameter_bounds(
     return initial - delta, initial + delta
 
 
+def _jacobian_sparsity(problem: _Problem) -> lil_matrix:
+    variable_poses = problem.pose_indices[1:]
+    pose_offsets = {pose_index: index * 6 for index, pose_index in enumerate(variable_poses)}
+    landmark_base = len(variable_poses) * 6
+    landmark_offsets = {
+        int(landmark_id): landmark_base + index * 3
+        for index, landmark_id in enumerate(problem.landmark_indices)
+    }
+    sparsity = lil_matrix(
+        (len(problem.observations) * 2, landmark_base + len(landmark_offsets) * 3)
+    )
+    for observation_index, observation in enumerate(problem.observations):
+        rows = slice(observation_index * 2, observation_index * 2 + 2)
+        pose_offset = pose_offsets.get(observation.pose_index)
+        if pose_offset is not None:
+            sparsity[rows, pose_offset : pose_offset + 6] = 1
+        landmark_offset = landmark_offsets[observation.landmark_index]
+        sparsity[rows, landmark_offset : landmark_offset + 3] = 1
+    return sparsity
+
+
 def bundle_adjust(
     window: BundleWindow,
     observations: list[Observation],
@@ -196,6 +218,7 @@ def bundle_adjust(
         f_scale=config.robust_scale,
         max_nfev=config.max_nfev,
         bounds=(lower, upper),
+        jac_sparsity=_jacobian_sparsity(problem),
     )
     candidate_values = np.asarray(optimized.x, dtype=np.float64)
     if not optimized.success or not np.isfinite(candidate_values).all():
