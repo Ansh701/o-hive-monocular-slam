@@ -237,7 +237,8 @@ Resources:
         Comment: !Sub '${AWS::StackName} public application'
         DefaultCacheBehavior:
           AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
-          CachePolicyId: 413f2c1d-3b35-4f06-8efc-6917e9a6de02
+          # AWS account catalog entry for the managed CachingDisabled policy.
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
           Compress: true
           TargetOriginId: app-instance
           ViewerProtocolPolicy: redirect-to-https
