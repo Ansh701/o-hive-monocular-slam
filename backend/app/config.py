@@ -21,8 +21,8 @@ class Settings(BaseSettings):
 
     max_video_bytes: int = Field(default=50 * 1024 * 1024, ge=1, le=250 * 1024 * 1024)
     max_video_duration_seconds: float = Field(default=30.0, gt=0, le=120)
-    max_video_width: int = Field(default=3840, ge=160, le=7680)
-    max_video_height: int = Field(default=2160, ge=120, le=4320)
+    max_video_width: int = Field(default=3840, ge=1, le=7680)
+    max_video_height: int = Field(default=2160, ge=1, le=4320)
     max_video_frames: int = Field(default=1800, ge=2, le=18_000)
     processing_timeout_seconds: float = Field(default=45.0, gt=0, le=300)
     max_concurrent_runs: int = Field(default=1, ge=1, le=4)
@@ -43,4 +43,3 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
-
