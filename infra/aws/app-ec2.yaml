@@ -1,0 +1,288 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Public monocular sparse SLAM application — one CPU EC2 origin behind CloudFront keeps the
+  assignment reproducible while avoiding NAT Gateway, load balancer, GPU, and managed-runtime cost.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@2
+  com.aws.cloudformation.Context:
+    arch: CloudFront HTTPS -> prefix-list-restricted EC2:80 -> one Docker app; external PostgreSQL
+    must:
+      - no NAT Gateway, load balancer, GPU, SSH ingress, or automated deployment
+      - DB URL comes from SSM SecureString; never place it in template or user data
+    ref:
+      - at: README.md
+        has: deployment, cost, operations, and rollback instructions
+        scope: repository
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: c7i-flex.large
+    AllowedValues: [c7i-flex.large, c7i.large, c7i.xlarge, t3.large]
+    Description: Start with c7i-flex.large; move to c7i.xlarge only if the measured gate requires it.
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  RepositoryUrl:
+    Type: String
+    Default: https://github.com/Ansh701/o-hive-monocular-slam.git
+    AllowedPattern: '^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.git$'
+  GitRef:
+    Type: String
+    Default: main
+    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$'
+    Description: Branch, tag, or immutable commit SHA to deploy manually.
+  DatabaseUrlParameterName:
+    Type: String
+    Default: /o-hive/slam/database-url
+    AllowedPattern: '^/[A-Za-z0-9_.\-/]+$'
+    Description: Existing SSM SecureString containing the asyncpg PostgreSQL URL.
+  CloudFrontOriginPrefixListId:
+    Type: String
+    AllowedPattern: '^pl-[0-9a-f]+$'
+    Description: Regional managed prefix list ID for com.amazonaws.global.cloudfront.origin-facing.
+  BillingAlertEmail:
+    Type: String
+    AllowedPattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+    Description: Address for the stack's low monthly budget notification; supplied at deploy time.
+  MonthlyBudgetUsd:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 100
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: minimal single-AZ public network; public subnet avoids fixed NAT Gateway cost
+        must: [DNS support stays enabled for package fetch + CloudFront origin DNS]
+        mutable: change-with-constraints
+    Properties:
+      CidrBlock: 10.42.0.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - {Key: Name, Value: !Sub '${AWS::StackName}-vpc'}
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref Vpc
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: direct Internet egress + CloudFront origin path without NAT or LB hourly charges
+        must: [single app instance only; no sensitive database is placed here]
+        mutable: review-required
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.42.0.0/26
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref Vpc
+      Tags:
+        - {Key: Name, Value: !Sub '${AWS::StackName}-public'}
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: accepts origin traffic only from AWS-managed CloudFront addresses; SSM replaces SSH
+        must:
+          - never add SSH ingress
+          - port 80 source remains CloudFront origin-facing managed prefix list
+        mutable: change-with-constraints
+    Properties:
+      GroupDescription: CloudFront-only HTTP origin access; no SSH
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourcePrefixListId: !Ref CloudFrontOriginPrefixListId
+          Description: CloudFront origin-facing addresses only
+      VpcId: !Ref Vpc
+
+  AppRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: SSM Session Manager operations + one named SecureString read; no deploy pipeline role
+        must: [do not add application AWS permissions or broad SSM parameter read]
+        mutable: change-with-constraints
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ec2.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: ReadSlamDatabaseUrl
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${DatabaseUrlParameterName}'
+
+  AppInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref AppRole]
+
+  AppInstance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: one x86 CPU host is the cheapest explainable deployment; Docker preserves local parity
+        must:
+          - IMDSv2 required and root EBS encrypted
+          - deploy is manual by stack GitRef update; no CI/CD worker
+          - raw videos remain inside ephemeral container upload dir and are deleted after processing
+        mutable: review-required
+        mutability:
+          InstanceType: free-to-tune
+          ImageId: change-with-constraints
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref AppInstanceProfile
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          DeviceIndex: '0'
+          GroupSet: [!Ref AppSecurityGroup]
+          SubnetId: !Ref PublicSubnet
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeSize: 16
+            VolumeType: gp3
+      Tags:
+        - {Key: Name, Value: !Sub '${AWS::StackName}-app'}
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y docker git
+          systemctl enable --now docker
+          usermod -aG docker ec2-user
+          install -d -m 0755 /opt/o-hive
+          git clone --filter=blob:none '${RepositoryUrl}' /opt/o-hive/app
+          cd /opt/o-hive/app
+          git checkout '${GitRef}'
+          docker build --pull --tag o-hive-slam:deploy .
+          DB_URL="$(aws ssm get-parameter --name '${DatabaseUrlParameterName}' --with-decryption --query Parameter.Value --output text --region '${AWS::Region}')"
+          TOKEN="$(curl -fsS -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600' http://169.254.169.254/latest/api/token)"
+          PUBLIC_HOST="$(curl -fsS -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-hostname)"
+          docker run --detach --name o-hive-slam --restart unless-stopped \
+            --publish 80:8000 \
+            --env APP_ENV=production \
+            --env "ALLOWED_HOSTS=$PUBLIC_HOST" \
+            --env "DATABASE_URL=$DB_URL" \
+            --env MAX_CONCURRENT_RUNS=1 \
+            --env RATE_LIMIT_RUNS_PER_MINUTE=4 \
+            --env PROCESSING_TIMEOUT_SECONDS=45 \
+            --tmpfs /app/uploads:rw,noexec,nosuid,size=64m \
+            o-hive-slam:deploy
+          unset DB_URL TOKEN
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: AWS-managed public HTTPS edge without ALB; all API responses are uncached
+        must:
+          - viewer protocol remains HTTPS redirect
+          - cache stays disabled because run state + uploads are user-specific
+        mutable: change-with-constraints
+    Properties:
+      DistributionConfig:
+        Comment: !Sub '${AWS::StackName} public application'
+        DefaultCacheBehavior:
+          AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+          CachePolicyId: 413f2c1d-3b35-4f06-8efc-6917e9a6de02
+          Compress: true
+          TargetOriginId: app-instance
+          ViewerProtocolPolicy: redirect-to-https
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        Origins:
+          - DomainName: !GetAtt AppInstance.PublicDnsName
+            Id: app-instance
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+              OriginReadTimeout: 60
+        PriceClass: PriceClass_100
+
+  CostBudget:
+    Type: AWS::Budgets::Budget
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: early email warning protects the public CPU demo from unnoticed spend
+        must: [keep threshold below monthly budget amount]
+        mutable: free-to-tune
+    Properties:
+      Budget:
+        BudgetLimit: {Amount: !Ref MonthlyBudgetUsd, Unit: USD}
+        BudgetName: !Sub '${AWS::StackName}-monthly'
+        BudgetType: COST
+        TimeUnit: MONTHLY
+      NotificationsWithSubscribers:
+        - Notification:
+            ComparisonOperator: GREATER_THAN
+            NotificationType: FORECASTED
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - Address: !Ref BillingAlertEmail
+              SubscriptionType: EMAIL
+
+Outputs:
+  ApplicationUrl:
+    Description: Public HTTPS URL served by CloudFront.
+    Value: !Sub 'https://${Distribution.DomainName}'
+  InstanceId:
+    Description: EC2 instance ID for Session Manager diagnostics and manual updates.
+    Value: !Ref AppInstance
+  OriginHostname:
+    Description: EC2 origin hostname; port 80 accepts only CloudFront managed addresses.
+    Value: !GetAtt AppInstance.PublicDnsName

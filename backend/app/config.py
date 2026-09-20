@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     temp_upload_dir: Path = Path("uploads")
     allowed_hosts: str = "localhost,127.0.0.1,test"
     development_cors_origins: str = "http://localhost:5173"
+    frontend_dist_dir: Path = Path("frontend/dist")
 
     max_video_bytes: int = Field(default=50 * 1024 * 1024, ge=1, le=250 * 1024 * 1024)
     max_video_duration_seconds: float = Field(default=30.0, gt=0, le=120)

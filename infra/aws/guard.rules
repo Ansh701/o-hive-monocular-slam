@@ -1,0 +1,18 @@
+let app_instances = Resources.*[ Type == 'AWS::EC2::Instance' ]
+let security_groups = Resources.*[ Type == 'AWS::EC2::SecurityGroup' ]
+let instance_roles = Resources.*[ Type == 'AWS::IAM::Role' ]
+
+rule app_instance_is_hardened when %app_instances !empty {
+  %app_instances.Properties.MetadataOptions.HttpTokens == 'required'
+  %app_instances.Properties.BlockDeviceMappings.*.Ebs.Encrypted == true
+  %app_instances.Properties.BlockDeviceMappings.*.Ebs.DeleteOnTermination == true
+}
+
+rule no_ssh_ingress when %security_groups !empty {
+  %security_groups.Properties.SecurityGroupIngress.*.FromPort != 22
+  %security_groups.Properties.SecurityGroupIngress.*.ToPort != 22
+}
+
+rule instance_role_has_no_administrator_policy when %instance_roles !empty {
+  %instance_roles.Properties.ManagedPolicyArns.* != /AdministratorAccess/
+}

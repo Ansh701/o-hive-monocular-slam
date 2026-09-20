@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: o_hive_slam
+      POSTGRES_USER: slam_app
+      POSTGRES_PASSWORD: local-slam-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slam_app -d o_hive_slam"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5433:5432"
+    volumes:
+      - slam-postgres:/var/lib/postgresql/data
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+asyncpg://slam_app:local-slam-only@postgres:5432/o_hive_slam
+      ALLOWED_HOSTS: localhost,127.0.0.1
+    ports:
+      - "8000:8000"
+    volumes:
+      - slam-uploads:/app/uploads
+
+volumes:
+  slam-postgres:
+  slam-uploads:

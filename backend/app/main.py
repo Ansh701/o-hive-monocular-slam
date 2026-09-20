@@ -5,6 +5,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from backend.app.api import RunCoordinator, router
@@ -53,6 +54,12 @@ def create_app(
             )
     app.middleware("http")(security_headers_middleware)
     app.include_router(router)
+    if configured.frontend_dist_dir.is_dir():
+        app.mount(
+            "/",
+            StaticFiles(directory=configured.frontend_dist_dir, html=True),
+            name="frontend",
+        )
 
     @app.exception_handler(Exception)
     async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:

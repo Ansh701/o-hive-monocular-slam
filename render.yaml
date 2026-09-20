@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: o-hive-monocular-slam
+    runtime: docker
+    plan: free
+    autoDeploy: false
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: ALLOWED_HOSTS
+        value: o-hive-monocular-slam.onrender.com
+      - key: DATABASE_URL
+        sync: false
+      # The secret URL above must target the isolated o_hive_slam_production database.
+      - key: MAX_CONCURRENT_RUNS
+        value: "1"
+      - key: RATE_LIMIT_RUNS_PER_MINUTE
+        value: "4"
+      - key: PROCESSING_TIMEOUT_SECONDS
+        value: "45"

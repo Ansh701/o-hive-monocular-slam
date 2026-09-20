@@ -1,0 +1,23 @@
+{
+  "effective_processing_fps": 8.0,
+  "environment": "local Windows x86_64; Windows 11; Intel64 Family 6 Model 158 Stepping 13",
+  "frames_decoded": 75,
+  "frames_processed": 72,
+  "generated_at": "2026-09-20T10:47:44.261017+00:00",
+  "keyframe_count": 71,
+  "median_reprojection_error_px": 1.472901,
+  "original_fps": 30.0,
+  "original_frame_count": 300,
+  "original_resolution": "960x540",
+  "passed": true,
+  "point_count": 640,
+  "pose_count": 72,
+  "processing_ratio": 0.316259,
+  "processing_resolution": "640x360",
+  "processing_seconds": 3.162586,
+  "source": "benchmark-10s.mp4",
+  "status": "COMPLETED",
+  "threshold_seconds": 10.0,
+  "total_end_to_end_seconds": 3.174697,
+  "video_duration_seconds": 10.0
+}
