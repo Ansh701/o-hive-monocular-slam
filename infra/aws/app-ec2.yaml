@@ -219,7 +219,7 @@ Resources:
             --env MAX_CONCURRENT_RUNS=1 \
             --env RATE_LIMIT_RUNS_PER_MINUTE=4 \
             --env PROCESSING_TIMEOUT_SECONDS=45 \
-            --tmpfs /app/uploads:rw,noexec,nosuid,size=64m \
+            --tmpfs /app/uploads:rw,noexec,nosuid,size=64m,uid=100,gid=101,mode=0700 \
             o-hive-slam:deploy
           unset DB_URL TOKEN
 
