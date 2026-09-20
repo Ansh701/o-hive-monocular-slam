@@ -18,9 +18,7 @@ def utc_now() -> datetime:
 class SlamRun(Base):
     __tablename__ = "slam_runs"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     status: Mapped[str] = mapped_column(String(24), index=True)
     stage: Mapped[str] = mapped_column(String(40), default="uploaded")
     source_filename: Mapped[str] = mapped_column(String(120))
@@ -38,4 +36,3 @@ class SlamRun(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-

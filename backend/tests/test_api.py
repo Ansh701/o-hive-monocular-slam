@@ -189,6 +189,7 @@ async def test_health_readiness_headers_and_bad_ids(tmp_path: Path) -> None:
     assert missing.status_code == 404
     assert health.headers["x-content-type-options"] == "nosniff"
     assert health.headers["x-frame-options"] == "DENY"
+    assert len(health.headers["x-request-id"]) == 32
     assert "default-src 'self'" in health.headers["content-security-policy"]
 
 

@@ -58,4 +58,3 @@ def test_landmark_association_uses_lk_source_indices_and_caps_output() -> None:
 
     with pytest.raises(ValueError, match="bounds"):
         associate_landmarks(tracked, np.array([1, 2]), max_landmarks=10)
-

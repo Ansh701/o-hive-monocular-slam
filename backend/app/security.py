@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
+import uuid
 from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
 
 from fastapi import HTTPException, Request, Response
+
+logger = logging.getLogger("o_hive_slam")
 
 
 class SlidingWindowRateLimiter:
@@ -37,7 +41,23 @@ async def security_headers_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    response = await call_next(request)
+    request_id = uuid.uuid4().hex
+    request.state.request_id = request_id
+    started = time.perf_counter()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    finally:
+        logger.info(
+            "request_complete request_id=%s method=%s path=%s status=%s duration_ms=%.2f",
+            request_id,
+            request.method,
+            request.url.path,
+            status_code,
+            (time.perf_counter() - started) * 1000,
+        )
+    response.headers["X-Request-ID"] = request_id
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self'; style-src 'self'; "
         "img-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; "
@@ -48,4 +68,3 @@ async def security_headers_middleware(
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return response
-

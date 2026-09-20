@@ -97,9 +97,7 @@ class SlamPipeline:
         started: float,
     ) -> SlamResult:
         total = len(frames)
-        first_gray = cast(
-            npt.NDArray[np.uint8], cv2.cvtColor(frames[0].image, cv2.COLOR_BGR2GRAY)
-        )
+        first_gray = cast(npt.NDArray[np.uint8], cv2.cvtColor(frames[0].image, cv2.COLOR_BGR2GRAY))
         current_points = detect_corners(first_gray, max_features=self.settings.max_features)
         if len(current_points) < self.settings.min_initial_landmarks:
             raise SlamFailure(
@@ -184,9 +182,7 @@ class SlamPipeline:
 
         for frame_index in range(initialized_frame_index + 1, total):
             frame = frames[frame_index]
-            gray = cast(
-                npt.NDArray[np.uint8], cv2.cvtColor(frame.image, cv2.COLOR_BGR2GRAY)
-            )
+            gray = cast(npt.NDArray[np.uint8], cv2.cvtColor(frame.image, cv2.COLOR_BGR2GRAY))
             tracked = track_lk_forward_backward(previous_gray, gray, current_points)
             if len(tracked.current_points) == 0:
                 partial = True
@@ -275,9 +271,7 @@ class SlamPipeline:
                                 Observation(0, int(new_landmark_id), anchor_points[row])
                             )
                             observations.append(
-                                Observation(
-                                    pose_index, int(new_landmark_id), current_points[row]
-                                )
+                                Observation(pose_index, int(new_landmark_id), current_points[row])
                             )
                     except SlamFailure:
                         pass

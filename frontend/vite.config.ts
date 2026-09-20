@@ -5,7 +5,11 @@ export default defineConfig({
   plugins: [react()],
   build: { sourcemap: false },
   server: {
-    proxy: { "/api": "http://127.0.0.1:8000", "/health": "http://127.0.0.1:8000" },
+    proxy: {
+      "/api": "http://127.0.0.1:8000",
+      "/health": "http://127.0.0.1:8000",
+      "/ready": "http://127.0.0.1:8000",
+    },
   },
   test: {
     environment: "jsdom",

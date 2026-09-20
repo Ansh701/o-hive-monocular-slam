@@ -63,9 +63,9 @@ def triangulate_filtered(
     if len(first_pixels) != len(second_pixels):
         raise ValueError("point correspondence arrays must have equal length")
 
-    finite_correspondence = np.isfinite(first_pixels).all(axis=1) & np.isfinite(
-        second_pixels
-    ).all(axis=1)
+    finite_correspondence = np.isfinite(first_pixels).all(axis=1) & np.isfinite(second_pixels).all(
+        axis=1
+    )
     source_indices = np.flatnonzero(finite_correspondence).astype(np.int64)
     first_finite = first_pixels[finite_correspondence]
     second_finite = second_pixels[finite_correspondence]

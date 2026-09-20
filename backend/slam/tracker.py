@@ -113,4 +113,3 @@ def associate_landmarks(
         image_points=candidate_points[order].astype(np.float64),
         tracking_errors=candidate_errors[order].astype(np.float64),
     )
-

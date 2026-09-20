@@ -40,9 +40,7 @@ class BenchmarkMetrics:
     generated_at: str
 
 
-def evaluate_benchmark(
-    metrics: BenchmarkMetrics, *, threshold_seconds: float
-) -> dict[str, Any]:
+def evaluate_benchmark(metrics: BenchmarkMetrics, *, threshold_seconds: float) -> dict[str, Any]:
     report = asdict(metrics)
     report["threshold_seconds"] = threshold_seconds
     report["passed"] = (
@@ -72,8 +70,7 @@ def run_benchmark(video_path: Path, *, environment: str) -> BenchmarkMetrics:
     reprojection_errors = [
         diagnostic.reprojection_error
         for diagnostic in result.diagnostics
-        if diagnostic.reprojection_error is not None
-        and np.isfinite(diagnostic.reprojection_error)
+        if diagnostic.reprojection_error is not None and np.isfinite(diagnostic.reprojection_error)
     ]
     return BenchmarkMetrics(
         source=video_path.name,

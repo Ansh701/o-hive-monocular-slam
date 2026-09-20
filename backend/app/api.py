@@ -83,9 +83,7 @@ class RunCoordinator:
                 setattr(run, name, value)
             await session.commit()
 
-    async def _process(
-        self, run_id: str, path: Path, intrinsics: CameraIntrinsics | None
-    ) -> None:
+    async def _process(self, run_id: str, path: Path, intrinsics: CameraIntrinsics | None) -> None:
         loop = asyncio.get_running_loop()
 
         def progress(stage_name: str, completed: int, total: int) -> None:
