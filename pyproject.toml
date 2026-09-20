@@ -30,6 +30,7 @@ dev = [
   "pytest-asyncio>=1.1,<2",
   "pytest-cov>=6.2,<7",
   "ruff>=0.12,<1",
+  "scipy-stubs>=1.16,<2",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -53,4 +54,3 @@ python_version = "3.12"
 strict = true
 packages = ["backend"]
 exclude = ["backend/tests"]
-
