@@ -6,12 +6,12 @@ The implementation does not fabricate geometry and does not describe monocular c
 
 ## Live applications
 
-- **Official AWS application:** pending the authenticated manual deployment described below.
+- **Official AWS application:** <https://d603zvdt2stm5.cloudfront.net>
 - **Optional Render mirror:** pending the manual mirror deployment. Render is not the official assignment host.
 - **Source:** <https://github.com/Ansh701/o-hive-monocular-slam>
 - **Deployment mode:** manual only. GitHub Actions, Dependabot, workers, and automatic Render deploys are deliberately disabled/absent.
 
-The live URLs and immutable deployed commit are recorded here only after public acceptance testing succeeds.
+The AWS URL was accepted against a `c7i-flex.large` origin in `us-east-1`; `/`, `/health`, and database-aware `/ready` return HTTP 200 through CloudFront HTTPS.
 
 ## Architecture
 
@@ -301,7 +301,7 @@ cfn-guard validate --rules infra\aws\guard.rules --data infra\aws\app-ec2.yaml -
 
 Latest verified local result: **59 backend tests and 8 frontend tests pass**; Ruff, strict mypy, ESLint, TypeScript, Vite, cfn-lint, and CloudFormation Guard pass; npm audit reports zero vulnerabilities. A clean database upgrade creates `slam_runs` at revision `20260920_slam_01_initial`. The production-style same-origin runtime returns React at `/`, liveness at `/health`, and table-aware readiness at `/ready`.
 
-Docker source and policy tests pass, but the final local image build must be rerun on a host with Docker because Docker is not installed on the authoring workstation. AWS user data performs the real image build during deployment.
+Docker is not installed on the authoring workstation, so a local Docker build was unavailable. The real multistage image build completed successfully on the deployed AWS host, and the resulting non-root container passed origin and public health/readiness checks.
 
 ## Benchmark methodology and current result
 
@@ -323,7 +323,23 @@ The current **local engineering benchmark** is committed at [docs/evaluation/loc
 | Environment | Windows 11 x86_64, Intel Family 6 Model 158 |
 | Local ≤10 s gate | PASS |
 
-This local result is not substituted for the assignment’s AWS acceptance result. The AWS row will be added only after the exact same video and script run on the deployed EC2 environment.
+The matching **AWS acceptance result** is committed at [docs/evaluation/aws-10s-benchmark.json](docs/evaluation/aws-10s-benchmark.json):
+
+| Metric | AWS result |
+|---|---:|
+| Input | `benchmark-10s.mp4` |
+| Duration / source | 10.0 s / 960×540 / 30 FPS / 300 frames |
+| Processing profile | 640×360 / 8 effective FPS / 75 decoded samples |
+| Frames with retained diagnostics | 72 |
+| Poses / keyframes / sparse points | 72 / 71 / 640 |
+| Median tracking reprojection error | 1.492655 px |
+| Pure processing | **3.461234 s** |
+| Public upload + polling wall time | 12.782 s |
+| Ratio | 0.346123× video duration |
+| Environment | AWS `c7i-flex.large`, 2 vCPU / 4 GiB, Amazon Linux 2023, Docker |
+| AWS ≤10 s gate | **PASS** |
+
+The public failure checks also passed: the low-texture fixture returned `INITIALIZATION_FAILED` with a useful parallax message; a text file named `../../malicious.mp4` returned HTTP 422 `VIDEO_INVALID`; and the hardened upload tmpfs contained zero files after processing.
 
 ## AWS cost strategy and manual deployment
 
